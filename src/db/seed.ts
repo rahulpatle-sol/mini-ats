@@ -1,0 +1,98 @@
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
+import { candidates, stageEvents } from "./schema";
+
+type Stage = "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
+
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("DATABASE_URL missing. Add it to .env.local");
+const db = drizzle(neon(url));
+
+// deterministic pseudo-random so the demo data is stable
+let seed = 42;
+const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+const pick = <T,>(a: T[]) => a[Math.floor(rand() * a.length)]!;
+
+const people = [
+  "Aarav Sharma", "Diya Patel", "Rohan Verma", "Ananya Iyer", "Kabir Singh", "Meera Nair",
+  "Vihaan Gupta", "Isha Reddy", "Arjun Mehta", "Saanvi Joshi", "Aditya Rao", "Priya Desai",
+  "Karan Malhotra", "Tara Kapoor", "Neil Fernandes", "Riya Chawla", "Dev Bansal", "Nisha Menon",
+  "Yash Agarwal", "Pooja Kulkarni", "Harsh Tiwari", "Sneha Pillai", "Manav Saxena", "Kavya Bhatt",
+  "Ishaan Das", "Lakshmi Krishnan", "Rahul Chauhan", "Ira Banerjee",
+];
+
+const roles: Record<string, string[]> = {
+  "Frontend Engineer": ["React", "TypeScript", "Next.js", "Tailwind CSS", "Testing"],
+  "Backend Engineer": ["Node.js", "PostgreSQL", "REST APIs", "Docker", "Redis"],
+  "Full-Stack Developer": ["React", "Node.js", "TypeScript", "PostgreSQL", "Next.js"],
+  "Product Designer": ["Figma", "Prototyping", "Design systems", "User research"],
+  "Data Analyst": ["SQL", "Python", "Tableau", "Excel", "Statistics"],
+  "HR Executive": ["Recruitment", "Onboarding", "Payroll", "Communication"],
+};
+const sources = ["LinkedIn", "Referral", "Job board", "Company website", "Campus"];
+const path: Stage[] = ["applied", "screening", "interview", "offer", "hired"];
+const weights: Stage[] = [
+  "applied", "applied", "applied", "screening", "screening", "screening",
+  "interview", "interview", "interview", "offer", "offer", "hired", "hired", "rejected", "rejected", "rejected",
+];
+const day = 86_400_000;
+
+async function main() {
+  const now = Date.now();
+  const cRows: (typeof candidates.$inferInsert)[] = [];
+  const eRows: (typeof stageEvents.$inferInsert)[] = [];
+
+  people.forEach((name, i) => {
+    const id = crypto.randomUUID();
+    const position = pick(Object.keys(roles));
+    const skills = Array.from(new Set(Array.from({ length: 2 + Math.floor(rand() * 3) }, () => pick(roles[position]!))));
+    const createdAt = new Date(now - Math.floor(rand() * 54 + 1) * day - Math.floor(rand() * day));
+    const final = pick(weights);
+
+    let t = createdAt.getTime();
+    let prev: Stage | null = null;
+    const steps: Stage[] = final === "rejected" ? path.slice(0, 1 + Math.floor(rand() * 3)) : path.slice(0, path.indexOf(final) + 1);
+    if (final === "rejected") steps.push("rejected");
+
+    for (const s of steps) {
+      if (prev) t += Math.floor(rand() * 5 + 1) * day;
+      t = Math.min(t, now - 60_000);
+      eRows.push({
+        candidateId: id,
+        fromStage: prev,
+        toStage: s,
+        note: prev === null ? "Candidate added" : s === "rejected" ? "Not a fit for the role right now" : null,
+        createdAt: new Date(t),
+      });
+      prev = s;
+    }
+
+    const first = name.split(" ")[0]!.toLowerCase();
+    const last = name.split(" ")[1]!.toLowerCase();
+    cRows.push({
+      id,
+      name,
+      email: `${first}.${last}${i}@example.com`,
+      phone: `+91 9${Math.floor(100000000 + rand() * 899999999)}`,
+      position,
+      stage: final,
+      skills,
+      experienceYears: Math.floor(rand() * 9),
+      source: pick(sources),
+      resumeUrl: null,
+      notes: rand() > 0.6 ? "Strong communicator. Worth a closer look." : null,
+      createdAt,
+      updatedAt: new Date(t),
+    });
+  });
+
+  await db.delete(candidates);
+  await db.insert(candidates).values(cRows);
+  await db.insert(stageEvents).values(eRows);
+  console.log(`Seeded ${cRows.length} candidates and ${eRows.length} stage events.`);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
