@@ -1,8 +1,9 @@
-import { Download, Plus, SearchX } from "lucide-react";
+import { Plus, SearchX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { CandidateFilters } from "@/components/candidate-filters";
+import { CsvExport } from "@/components/csv-export";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { Avatar, StageBadge } from "@/components/stage-badge";
@@ -46,9 +47,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
         description="Search, filter and open anyone in your pipeline."
         action={
           <div className="flex gap-2">
-            <a href={`/api/candidates/export?${exportParams}`} className="btn-ghost" download>
-              <Download size={15} /> Export CSV
-            </a>
+            <CsvExport params={exportParams} />
             <Link href="/candidates/new" className="btn-primary">
               <Plus size={16} /> New candidate
             </Link>

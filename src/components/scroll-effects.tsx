@@ -57,7 +57,6 @@ export function ScrollDraw({ d, stroke = "var(--accent)", strokeWidth = 2.5, cla
     function onScroll() {
       const rect = el!.getBoundingClientRect();
       const vh = window.innerHeight;
-      // 0 when element bottom enters viewport, 1 when element top reaches viewport middle
       const raw = (vh - rect.top) / (vh * 0.5 + rect.height * 0.5);
       const p = Math.min(1, Math.max(0, raw));
       setProgress(p);
@@ -74,6 +73,141 @@ export function ScrollDraw({ d, stroke = "var(--accent)", strokeWidth = 2.5, cla
   }, []);
 
   return <path ref={ref} d={d} stroke={stroke} strokeWidth={strokeWidth} fill="none" strokeLinecap="round" className={className} data-progress={progress} />;
+}
+
+/**
+ * Sherians-style scroll parallax layer.
+ * Moves the child vertically (and optionally scales/fades) based on how far
+ * the parent section is from the viewport center. Positive `speed` moves
+ * slower than scroll (background); negative moves faster (foreground).
+ */
+export function ParallaxLayer({
+  children,
+  speed = 0.25,
+  className = "",
+  enableScale = false,
+}: {
+  children: React.ReactNode;
+  /** -0.5 … 0.5. Higher = lags behind scroll (deep bg). Negative = races ahead. */
+  speed?: number;
+  className?: string;
+  enableScale?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let raf = 0;
+    let current = 0;
+    let target = 0;
+
+    const tick = () => {
+      current += (target - current) * 0.08; // smooth lerp — the "buttery" feel
+      const scale = enableScale ? 1 + Math.abs(current) * 0.0004 : 1;
+      el.style.transform = `translate3d(0, ${current.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const onScroll = () => {
+      const rect = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // -1 (below viewport) → 0 (center) → 1 (above viewport)
+      const progress = (rect.top + rect.height / 2 - vh / 2) / (vh / 2);
+      target = -progress * speed * 120;
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [speed, enableScale]);
+
+  return (
+    <div ref={ref} className={className} style={{ willChange: "transform" }}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Classic background-image parallax: the image translates inside a clipped
+ * container so it feels like a window into a deeper scene.
+ */
+export function ParallaxBg({
+  src,
+  speed = 0.35,
+  className = "",
+  overlay,
+  children,
+}: {
+  src: string;
+  /** How much the image lags (0.2 slow … 0.6 dramatic). */
+  speed?: number;
+  className?: string;
+  /** Optional gradient/dark overlay element on top of the image. */
+  overlay?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const img = imgRef.current;
+    if (!wrap || !img) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let raf = 0;
+    let current = 0;
+    let target = 0;
+
+    const tick = () => {
+      current += (target - current) * 0.07;
+      img.style.transform = `translate3d(0, ${current.toFixed(2)}px, 0) scale(1.15)`;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const onScroll = () => {
+      const rect = wrap.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // how far section center is from viewport center, normalized
+      const progress = (rect.top + rect.height / 2 - vh / 2) / vh;
+      target = progress * speed * -160; // negative → image drifts opposite
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [speed]);
+
+  return (
+    <div ref={wrapRef} className={`relative overflow-hidden ${className}`}>
+      <div
+        ref={imgRef}
+        className="absolute inset-[-12%] bg-cover bg-center will-change-transform"
+        style={{ backgroundImage: `url(${src})` }}
+        aria-hidden
+      />
+      {overlay}
+      {children}
+    </div>
+  );
 }
 
 /** Fades + slides in on scroll. Wrap sections in this. */
@@ -97,6 +231,18 @@ export function ParallaxCard({ children, speed = 0.06, className = "" }: { child
 
   return (
     <div ref={ref} className={className} style={{ transform: `translateY(${offset}px)` }}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Sticky section: content stays pinned while you scroll, then releases.
+ * Classic "scroll story" beat — use sparingly (hero, one showcase).
+ */
+export function StickyBeat({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`sticky top-0 flex min-h-svh items-center ${className}`}>
       {children}
     </div>
   );

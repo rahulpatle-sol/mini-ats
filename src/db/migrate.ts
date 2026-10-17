@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { hashPassword } from "../lib/auth";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL missing");
@@ -25,11 +26,11 @@ async function main() {
   } else {
     const created = await sql`
       INSERT INTO "users" ("email", "password_hash", "name")
-      VALUES ('admin@example.com', 'placeholder-will-be-reseeded', 'Demo Admin')
+      VALUES ('admin@example.com', ${hashPassword('admin123')}, 'Rahul Patle')
       RETURNING id
     `;
     userId = created[0].id as string;
-    console.log("Created placeholder user admin@example.com");
+    console.log("Created demo user admin@example.com");
   }
 
   // 2. jobs table (create if missing, else add user_id column)

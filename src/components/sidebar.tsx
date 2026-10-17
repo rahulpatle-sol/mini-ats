@@ -16,11 +16,11 @@ const NAV = [
 ];
 
 function ThemeBtn({ className }: { className?: string }) {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return <span className={className} />;
-  const isDark = theme === "dark";
+  const isDark = resolvedTheme !== "light";
   return (
     <button
       type="button"

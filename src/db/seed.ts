@@ -16,6 +16,7 @@ const pick = <T,>(a: T[]) => a[Math.floor(rand() * a.length)]!;
 
 const DEMO_EMAIL = "admin@example.com";
 const DEMO_PASSWORD = "admin123";
+const DEMO_NAME = "Rahul Patle";
 
 const people = [
   "Aarav Sharma", "Diya Patel", "Rohan Verma", "Ananya Iyer", "Kabir Singh", "Meera Nair",
@@ -53,20 +54,29 @@ const day = 86_400_000;
 async function main() {
   const now = Date.now();
 
-  // --- ensure demo user exists ---
+  // --- ensure demo user exists (always fix name + password, e.g. migrate placeholder) ---
   let [demoUser] = await db.select().from(users).where(eq(users.email, DEMO_EMAIL)).limit(1);
   if (!demoUser) {
     const uid = crypto.randomUUID();
     await db.insert(users).values({
       id: uid,
       email: DEMO_EMAIL,
-      name: "Demo Admin",
+      name: DEMO_NAME,
       passwordHash: hashPassword(DEMO_PASSWORD),
     });
-    demoUser = { id: uid, email: DEMO_EMAIL, name: "Demo Admin", passwordHash: "", createdAt: new Date() };
+    demoUser = { id: uid, email: DEMO_EMAIL, name: DEMO_NAME, passwordHash: "", createdAt: new Date() };
     console.log(`Created demo user: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
   } else {
-    console.log(`Demo user exists: ${DEMO_EMAIL}`);
+    const needsFix = demoUser.name !== DEMO_NAME || !demoUser.passwordHash.includes(":");
+    if (needsFix) {
+      await db
+        .update(users)
+        .set({ name: DEMO_NAME, passwordHash: hashPassword(DEMO_PASSWORD) })
+        .where(eq(users.id, demoUser.id));
+      console.log(`Fixed demo user: name -> ${DEMO_NAME}, password reset`);
+    } else {
+      console.log(`Demo user ok: ${DEMO_EMAIL}`);
+    }
   }
   const uid = demoUser.id;
 
