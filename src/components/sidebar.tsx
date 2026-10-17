@@ -39,7 +39,7 @@ export function Sidebar({ email }: { email?: string }) {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-line bg-sidebar px-4 py-5 md:flex">
+      <aside className="sticky top-0 z-10 hidden h-dvh w-64 shrink-0 flex-col border-r border-line bg-sidebar px-4 py-5 md:flex">
         <Link href="/dashboard" className="mb-6 flex items-center gap-2.5 px-2">
           <span className="font-serif text-2xl leading-none text-accent" aria-hidden>✺</span>
           <span className="font-serif text-xl tracking-tight">Mini ATS</span>

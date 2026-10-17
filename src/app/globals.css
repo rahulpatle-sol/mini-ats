@@ -12,8 +12,26 @@
   --accent-soft: #f6e8e1;
 }
 
+/* dark theme — applied by next-themes via .dark class on <html> */
+.dark {
+  --canvas: #262624;
+  --surface: #30302e;
+  --sidebar: #1f1e1d;
+  --line: #42413d;
+  --ink: #f2f0e8;
+  --muted: #a9a79d;
+  --accent: #d9805f;
+  --accent-ink: #1f1e1d;
+  --accent-soft: #3b2c26;
+  color-scheme: dark;
+}
+.light {
+  color-scheme: light;
+}
+
+/* no-JS / pre-hydration fallback: OS prefers dark and user hasn't chosen light */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light):not(.dark) {
     --canvas: #262624;
     --surface: #30302e;
     --sidebar: #1f1e1d;
@@ -208,9 +226,16 @@ html {
     radial-gradient(ellipse 60% 40% at 100% 0%, rgba(196, 98, 63, 0.07), transparent 60%),
     radial-gradient(ellipse 50% 35% at 0% 100%, rgba(196, 98, 63, 0.05), transparent 60%);
 }
-.warm-ambient > * {
+/* only main needs lifting above the fixed ::before — never touch aside/header
+   here, their `position: sticky` must survive (unlayered CSS beats Tailwind) */
+.warm-ambient > main {
   position: relative;
   z-index: 1;
+}
+
+/* wide pages (e.g. board) opt out of the centered max-w-6xl shell */
+main:has(.page-full) > div {
+  max-width: none;
 }
 
 /* ── auth popup entrance ── */

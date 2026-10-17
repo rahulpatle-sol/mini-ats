@@ -30,9 +30,9 @@ export default async function BoardPage() {
   ) as Record<Stage, BoardCard[]>;
 
   return (
-    <>
+    <div className="page-full">
       <PageHeader title="Board" description="Drag candidates between stages. Changes save automatically." />
       <KanbanBoard initial={initial} />
-    </>
+    </div>
   );
 }
