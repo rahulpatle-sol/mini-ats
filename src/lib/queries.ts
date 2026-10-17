@@ -99,7 +99,7 @@ export async function getJobsWithCounts(userId: string) {
     .from(jobs)
     .leftJoin(candidates, eq(candidates.jobId, jobs.id))
     .where(eq(jobs.userId, userId))
-    .groupBy(jobs.id)
+    .groupBy(jobs.id, jobs.userId, jobs.title, jobs.department, jobs.status, jobs.createdAt, jobs.updatedAt)
     .orderBy(asc(jobs.status), asc(jobs.title));
 }
 
