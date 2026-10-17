@@ -20,25 +20,47 @@ export const stageEnum = pgEnum("stage", [
 
 export const jobStatusEnum = pgEnum("job_status", ["open", "closed"]);
 
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull().unique(),
+    passwordHash: text("password_hash").notNull(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("users_email_idx").on(t.email)],
+);
+
 export const jobs = pgTable(
   "jobs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    title: text("title").notNull().unique(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
     department: text("department"),
     status: jobStatusEnum("status").notNull().default("open"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("jobs_status_idx").on(t.status)],
+  (t) => [
+    index("jobs_status_idx").on(t.status),
+    index("jobs_user_idx").on(t.userId),
+    index("jobs_user_title_idx").on(t.userId, t.title),
+  ],
 );
 
 export const candidates = pgTable(
   "candidates",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    email: text("email").notNull().unique(),
+    email: text("email").notNull(),
     phone: text("phone"),
     jobId: uuid("job_id")
       .notNull()
@@ -57,6 +79,8 @@ export const candidates = pgTable(
   (t) => [
     index("candidates_stage_idx").on(t.stage),
     index("candidates_job_idx").on(t.jobId),
+    index("candidates_user_idx").on(t.userId),
+    index("candidates_user_email_idx").on(t.userId, t.email),
     index("candidates_created_at_idx").on(t.createdAt),
   ],
 );
@@ -85,7 +109,7 @@ export const resumeFiles = pgTable(
     filename: text("filename").notNull(),
     contentType: text("content_type").notNull(),
     size: integer("size").notNull(),
-    data: text("data").notNull(), // base64
+    data: text("data").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("resume_files_candidate_idx").on(t.candidateId)],
@@ -106,6 +130,7 @@ export const stageEvents = pgTable(
   (t) => [index("stage_events_candidate_idx").on(t.candidateId)],
 );
 
+export type User = typeof users.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type CandidateNote = typeof candidateNotes.$inferSelect;

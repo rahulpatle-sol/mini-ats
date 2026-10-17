@@ -12,6 +12,7 @@ export async function GET(req: Request) {
   const sort = SORT_OPTIONS.find((o) => o.value === sp.get("sort"))?.value as SortKey | undefined;
 
   const rows = await listAllCandidates({
+    userId: session.uid,
     q: sp.get("q") ?? undefined,
     stage: isStage(stage) ? stage : undefined,
     jobId: sp.get("job") ?? undefined,

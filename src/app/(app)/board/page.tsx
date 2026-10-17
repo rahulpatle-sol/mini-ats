@@ -3,12 +3,15 @@ import { KanbanBoard, type BoardCard } from "@/components/kanban-board";
 import { PageHeader } from "@/components/page-header";
 import type { Stage } from "@/lib/constants";
 import { getBoard } from "@/lib/queries";
+import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Board" };
 export const dynamic = "force-dynamic";
 
 export default async function BoardPage() {
-  const board = await getBoard();
+  const session = await getSession();
+  if (!session) return null;
+  const board = await getBoard(session.uid);
   const initial = Object.fromEntries(
     Object.entries(board).map(([stage, rows]) => [
       stage,

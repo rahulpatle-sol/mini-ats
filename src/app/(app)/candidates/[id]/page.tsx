@@ -8,11 +8,14 @@ import { StageMover } from "@/components/stage-mover";
 import { Avatar, StageBadge } from "@/components/stage-badge";
 import { STAGE_META } from "@/lib/constants";
 import { getCandidate, getCandidateEvents, getCandidateNotes, getResumeMeta } from "@/lib/queries";
+import { getSession } from "@/lib/session";
 import { cn, daysSince, formatDate, formatDateTime } from "@/lib/utils";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const c = await getCandidate(id);
+  const s = await getSession();
+  if (!s) return { title: "Candidate" };
+  const c = await getCandidate(id, s.uid);
   return { title: c?.name ?? "Candidate" };
 }
 
@@ -26,8 +29,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export default async function CandidatePage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return null;
   const { id } = await params;
-  const candidate = await getCandidate(id);
+  const candidate = await getCandidate(id, session.uid);
   if (!candidate) notFound();
   const [events, notes, resume] = await Promise.all([
     getCandidateEvents(candidate.id),

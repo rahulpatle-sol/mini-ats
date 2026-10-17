@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 const COOKIE = "ats_session";
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
-export type SessionPayload = { sub: string; exp: number };
+export type SessionPayload = { uid: string; sub: string; exp: number };
 
 function secretKey() {
   const secret = process.env.AUTH_SECRET;
@@ -16,8 +16,8 @@ function secretKey() {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSession(email: string) {
-  const token = await new SignJWT({ sub: email })
+export async function createSession(userId: string, email: string) {
+  const token = await new SignJWT({ uid: userId, sub: email })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE}s`)
@@ -38,15 +38,15 @@ export async function destroySession() {
   store.delete(COOKIE);
 }
 
-/** Returns the signed-in email, or null. Never throws. */
+/** Returns the signed-in user, or null. Never throws. */
 export async function getSession(): Promise<SessionPayload | null> {
   try {
     const store = await cookies();
     const token = store.get(COOKIE)?.value;
     if (!token) return null;
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
-    if (typeof payload.sub !== "string") return null;
-    return { sub: payload.sub, exp: payload.exp ?? 0 };
+    if (typeof payload.sub !== "string" || typeof payload.uid !== "string") return null;
+    return { uid: payload.uid, sub: payload.sub, exp: payload.exp ?? 0 };
   } catch {
     return null;
   }

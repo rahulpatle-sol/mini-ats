@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -19,19 +19,19 @@ function readJob(fd: FormData) {
   };
 }
 
-async function titleTaken(title: string, exceptId?: string) {
-  const rows = await getDb().select({ id: jobs.id, title: jobs.title }).from(jobs);
+async function titleTaken(title: string, userId: string, exceptId?: string) {
+  const rows = await getDb().select({ id: jobs.id, title: jobs.title }).from(jobs).where(eq(jobs.userId, userId));
   return rows.some((r) => r.title.toLowerCase() === title.toLowerCase() && r.id !== exceptId);
 }
 
 export async function createJob(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const raw = readJob(fd);
   const parsed = jobSchema.safeParse(raw);
   if (!parsed.success) return { errors: z.flattenError(parsed.error).fieldErrors, values: raw };
-  if (await titleTaken(parsed.data.title)) return { errors: { title: ["A job with this title already exists"] }, values: raw };
+  if (await titleTaken(parsed.data.title, user.uid)) return { errors: { title: ["A job with this title already exists"] }, values: raw };
   try {
-    await getDb().insert(jobs).values(parsed.data);
+    await getDb().insert(jobs).values({ ...parsed.data, userId: user.uid });
   } catch {
     return { message: "Could not save the job. Try again.", values: raw };
   }
@@ -40,14 +40,14 @@ export async function createJob(_prev: FormState, fd: FormData): Promise<FormSta
 }
 
 export async function updateJob(id: string, _prev: FormState, fd: FormData): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   if (!isUuid(id)) return { message: "Job not found." };
   const raw = readJob(fd);
   const parsed = jobSchema.safeParse(raw);
   if (!parsed.success) return { errors: z.flattenError(parsed.error).fieldErrors, values: raw };
-  if (await titleTaken(parsed.data.title, id)) return { errors: { title: ["A job with this title already exists"] }, values: raw };
+  if (await titleTaken(parsed.data.title, user.uid, id)) return { errors: { title: ["A job with this title already exists"] }, values: raw };
   try {
-    await getDb().update(jobs).set(parsed.data).where(eq(jobs.id, id));
+    await getDb().update(jobs).set({ ...parsed.data, updatedAt: new Date() }).where(and(eq(jobs.id, id), eq(jobs.userId, user.uid)));
   } catch {
     return { message: "Could not save changes. Try again.", values: raw };
   }
@@ -56,19 +56,19 @@ export async function updateJob(id: string, _prev: FormState, fd: FormData): Pro
 }
 
 export async function setJobStatus(id: string, status: "open" | "closed") {
-  await requireUser();
+  const user = await requireUser();
   if (!isUuid(id)) return;
-  await getDb().update(jobs).set({ status, updatedAt: new Date() }).where(eq(jobs.id, id));
+  await getDb().update(jobs).set({ status, updatedAt: new Date() }).where(and(eq(jobs.id, id), eq(jobs.userId, user.uid)));
   revalidatePath("/", "layout");
 }
 
 export async function deleteJob(id: string): Promise<{ ok: boolean; error?: string }> {
-  await requireUser();
+  const user = await requireUser();
   if (!isUuid(id)) return { ok: false, error: "Job not found." };
   const db = getDb();
   const used = await db.select({ id: candidates.id }).from(candidates).where(eq(candidates.jobId, id)).limit(1);
   if (used.length) return { ok: false, error: "This job has candidates. Close it instead of deleting." };
-  await db.delete(jobs).where(eq(jobs.id, id));
+  await db.delete(jobs).where(and(eq(jobs.id, id), eq(jobs.userId, user.uid)));
   revalidatePath("/", "layout");
   return { ok: true };
 }

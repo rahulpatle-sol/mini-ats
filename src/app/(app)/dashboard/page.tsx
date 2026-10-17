@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { StageBadge } from "@/components/stage-badge";
 import { PIPELINE, STAGE_META, type Stage } from "@/lib/constants";
 import { getDashboard } from "@/lib/queries";
+import { getSession } from "@/lib/session";
 import { cn, timeAgo } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,9 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
 }
 
 export default async function Dashboard() {
-  const d = await getDashboard();
+  const session = await getSession();
+  if (!session) return null;
+  const d = await getDashboard(session.uid);
 
   if (d.total === 0) {
     return (
@@ -31,9 +34,14 @@ export default async function Dashboard() {
           <p className="mx-auto mt-2 max-w-sm text-muted">
             Add your first candidate to start tracking them from applied to hired. Metrics appear here automatically.
           </p>
-          <Link href="/candidates/new" className="btn-primary mt-6">
-            <Plus size={16} /> Add candidate
-          </Link>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link href="/jobs/new" className="btn-ghost">
+              <Plus size={16} /> Add a job
+            </Link>
+            <Link href="/candidates/new" className="btn-primary">
+              <Plus size={16} /> Add candidate
+            </Link>
+          </div>
         </div>
       </>
     );

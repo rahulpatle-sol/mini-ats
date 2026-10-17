@@ -79,3 +79,28 @@ html {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── landing scroll reveal ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── demo video: moving card ── */
+@keyframes card-slide {
+  0% { transform: translateX(0); }
+  40% { transform: translateX(170px); }
+  70% { transform: translateX(320px); }
+  100% { transform: translateX(470px); }
+}
+.video-card-move {
+  animation: card-slide 4s ease-in-out infinite;
+}

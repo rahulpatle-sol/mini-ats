@@ -1,16 +1,21 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { candidateNotes, candidates, jobs, stageEvents } from "./schema";
+import { eq } from "drizzle-orm";
+import { candidateNotes, candidates, jobs, stageEvents, users } from "./schema";
+import { hashPassword } from "../lib/auth";
 
 type Stage = "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
 
 const url = process.env.DATABASE_URL;
-if (!url) throw new Error("DATABASE_URL missing. Add it to .env.local");
+if (!url) throw new Error("DATABASE_URL missing. Add it to .env");
 const db = drizzle(neon(url));
 
 let seed = 42;
 const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
 const pick = <T,>(a: T[]) => a[Math.floor(rand() * a.length)]!;
+
+const DEMO_EMAIL = "admin@example.com";
+const DEMO_PASSWORD = "admin123";
 
 const people = [
   "Aarav Sharma", "Diya Patel", "Rohan Verma", "Ananya Iyer", "Kabir Singh", "Meera Nair",
@@ -47,12 +52,31 @@ const day = 86_400_000;
 
 async function main() {
   const now = Date.now();
+
+  // --- ensure demo user exists ---
+  let [demoUser] = await db.select().from(users).where(eq(users.email, DEMO_EMAIL)).limit(1);
+  if (!demoUser) {
+    const uid = crypto.randomUUID();
+    await db.insert(users).values({
+      id: uid,
+      email: DEMO_EMAIL,
+      name: "Demo Admin",
+      passwordHash: hashPassword(DEMO_PASSWORD),
+    });
+    demoUser = { id: uid, email: DEMO_EMAIL, name: "Demo Admin", passwordHash: "", createdAt: new Date() };
+    console.log(`Created demo user: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+  } else {
+    console.log(`Demo user exists: ${DEMO_EMAIL}`);
+  }
+  const uid = demoUser.id;
+
   const cRows: (typeof candidates.$inferInsert)[] = [];
   const eRows: (typeof stageEvents.$inferInsert)[] = [];
   const nRows: (typeof candidateNotes.$inferInsert)[] = [];
 
   const jobRows = Object.keys(roles).map((title) => ({
     id: crypto.randomUUID(),
+    userId: uid,
     title,
     department: departments[title] ?? null,
     status: "open" as const,
@@ -88,6 +112,7 @@ async function main() {
     const last = name.split(" ")[1]!.toLowerCase();
     cRows.push({
       id,
+      userId: uid,
       name,
       email: `${first}.${last}${i}@example.com`,
       phone: `+91 9${Math.floor(100000000 + rand() * 899999999)}`,
@@ -108,8 +133,8 @@ async function main() {
     }
   });
 
-  await db.delete(candidates); // cascades to events, notes and resumes
-  await db.delete(jobs);
+  await db.delete(candidates).where(eq(candidates.userId, uid));
+  await db.delete(jobs).where(eq(jobs.userId, uid));
   await db.insert(jobs).values(jobRows);
   await db.insert(candidates).values(cRows);
   await db.insert(stageEvents).values(eRows);

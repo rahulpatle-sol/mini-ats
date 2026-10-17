@@ -33,7 +33,6 @@ function refresh() {
 
 type ResumeRow = { filename: string; contentType: string; size: number; data: string };
 
-/** Reads the optional upload. Returns a row to store, null for "no file", or an error message. */
 async function readResume(fd: FormData): Promise<ResumeRow | null | { error: string }> {
   const file = fd.get("resume");
   if (!(file instanceof File) || file.size === 0) return null;
@@ -51,13 +50,17 @@ async function readResume(fd: FormData): Promise<ResumeRow | null | { error: str
   };
 }
 
-async function checkJob(jobId: string) {
-  const [job] = await getDb().select({ id: jobs.id, title: jobs.title, status: jobs.status }).from(jobs).where(eq(jobs.id, jobId)).limit(1);
+async function checkJob(jobId: string, userId: string) {
+  const [job] = await getDb()
+    .select({ id: jobs.id, title: jobs.title, status: jobs.status })
+    .from(jobs)
+    .where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)))
+    .limit(1);
   return job ?? null;
 }
 
 export async function createCandidate(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const raw = readForm(fd);
   const parsed = candidateSchema.safeParse(raw);
   const resume = await readResume(fd);
@@ -68,17 +71,21 @@ export async function createCandidate(_prev: FormState, fd: FormData): Promise<F
   const db = getDb();
   const data = parsed.data;
 
-  const job = await checkJob(data.jobId);
+  const job = await checkJob(data.jobId, user.uid);
   if (!job) return { errors: { jobId: ["That role no longer exists"] }, values: raw };
   if (job.status === "closed") return { errors: { jobId: ["That role is closed. Reopen it first or pick another."] }, values: raw };
 
-  const dup = await db.select({ id: candidates.id }).from(candidates).where(eq(candidates.email, data.email)).limit(1);
+  const dup = await db
+    .select({ id: candidates.id })
+    .from(candidates)
+    .where(and(eq(candidates.email, data.email), eq(candidates.userId, user.uid)))
+    .limit(1);
   if (dup.length) return { errors: { email: ["A candidate with this email already exists"] }, values: raw };
 
   const id = crypto.randomUUID();
   try {
     const stmts = [
-      db.insert(candidates).values({ id, ...data }),
+      db.insert(candidates).values({ id, userId: user.uid, ...data }),
       db.insert(stageEvents).values({ candidateId: id, fromStage: null, toStage: "applied", note: "Candidate added" }),
     ] as const;
     if (resume) {
@@ -101,7 +108,7 @@ export async function createCandidate(_prev: FormState, fd: FormData): Promise<F
 }
 
 export async function updateCandidate(id: string, _prev: FormState, fd: FormData): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   if (!isUuid(id)) return { message: "Candidate not found." };
   const raw = readForm(fd);
   const parsed = candidateSchema.safeParse(raw);
@@ -113,13 +120,13 @@ export async function updateCandidate(id: string, _prev: FormState, fd: FormData
   const db = getDb();
   const data = parsed.data;
 
-  const job = await checkJob(data.jobId);
+  const job = await checkJob(data.jobId, user.uid);
   if (!job) return { errors: { jobId: ["That role no longer exists"] }, values: raw };
 
   const dup = await db
     .select({ id: candidates.id })
     .from(candidates)
-    .where(and(eq(candidates.email, data.email), ne(candidates.id, id)))
+    .where(and(eq(candidates.email, data.email), ne(candidates.id, id), eq(candidates.userId, user.uid)))
     .limit(1);
   if (dup.length) return { errors: { email: ["Another candidate already uses this email"] }, values: raw };
 

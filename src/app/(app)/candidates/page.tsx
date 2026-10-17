@@ -8,6 +8,7 @@ import { Pagination } from "@/components/pagination";
 import { Avatar, StageBadge } from "@/components/stage-badge";
 import { isStage, SORT_OPTIONS, type SortKey } from "@/lib/constants";
 import { getJobs, getStageCounts, listCandidates } from "@/lib/queries";
+import { getSession } from "@/lib/session";
 import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Candidates" };
@@ -16,15 +17,18 @@ export const dynamic = "force-dynamic";
 type SP = { q?: string; stage?: string; job?: string; sort?: string; page?: string };
 
 export default async function CandidatesPage({ searchParams }: { searchParams: Promise<SP> }) {
+  const session = await getSession();
+  if (!session) return null;
+  const uid = session.uid;
   const sp = await searchParams;
   const stage = isStage(sp.stage) ? sp.stage : undefined;
   const sort = SORT_OPTIONS.some((o) => o.value === sp.sort) ? (sp.sort as SortKey) : "newest";
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
   const [{ rows, total, pageCount, page: current }, counts, jobs] = await Promise.all([
-    listCandidates({ q: sp.q, stage, jobId: sp.job, sort, page }),
-    getStageCounts(),
-    getJobs(),
+    listCandidates({ userId: uid, q: sp.q, stage, jobId: sp.job, sort, page }),
+    getStageCounts(uid),
+    getJobs(uid),
   ]);
 
   const exportParams = new URLSearchParams();

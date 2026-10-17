@@ -4,14 +4,17 @@ import { updateCandidate } from "@/actions/candidates";
 import { CandidateForm } from "@/components/candidate-form";
 import { PageHeader } from "@/components/page-header";
 import { getCandidate, getJobs, getResumeMeta } from "@/lib/queries";
+import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Edit candidate" };
 
 export default async function EditCandidatePage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return null;
   const { id } = await params;
-  const candidate = await getCandidate(id);
+  const candidate = await getCandidate(id, session.uid);
   if (!candidate) notFound();
-  const [jobs, resume] = await Promise.all([getJobs(), getResumeMeta(candidate.id)]);
+  const [jobs, resume] = await Promise.all([getJobs(session.uid), getResumeMeta(candidate.id)]);
 
   return (
     <div className="mx-auto max-w-3xl">

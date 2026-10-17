@@ -4,13 +4,16 @@ import Link from "next/link";
 import { JobActions } from "@/components/job-actions";
 import { PageHeader } from "@/components/page-header";
 import { getJobsWithCounts } from "@/lib/queries";
+import { getSession } from "@/lib/session";
 import { cn, formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Jobs" };
 export const dynamic = "force-dynamic";
 
 export default async function JobsPage() {
-  const jobs = await getJobsWithCounts();
+  const session = await getSession();
+  if (!session) return null;
+  const jobs = await getJobsWithCounts(session.uid);
 
   return (
     <>

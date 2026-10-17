@@ -5,6 +5,7 @@ import { PAGE_SIZE, PIPELINE, STAGES, type SortKey, type Stage } from "@/lib/con
 import { isUuid } from "@/lib/utils";
 
 export type CandidateFilters = {
+  userId: string;
   q?: string;
   stage?: Stage;
   jobId?: string;
@@ -15,7 +16,7 @@ export type CandidateFilters = {
 const candidateCols = { ...getTableColumns(candidates), jobTitle: jobs.title };
 
 function buildWhere(f: CandidateFilters) {
-  const conds: (SQL | undefined)[] = [];
+  const conds: (SQL | undefined)[] = [eq(candidates.userId, f.userId)];
   const q = f.q?.trim();
   if (q) {
     const like = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
@@ -67,7 +68,6 @@ export async function listCandidates(f: CandidateFilters) {
   return { rows, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
 
-/** Every match, no pagination. Used by CSV export. */
 export async function listAllCandidates(f: CandidateFilters, limit = 5000) {
   return getDb()
     .select(candidateCols)
@@ -78,42 +78,44 @@ export async function listAllCandidates(f: CandidateFilters, limit = 5000) {
     .limit(limit);
 }
 
-export async function getStageCounts() {
+export async function getStageCounts(userId: string) {
   const rows = await getDb()
     .select({ stage: candidates.stage, n: count() })
     .from(candidates)
+    .where(eq(candidates.userId, userId))
     .groupBy(candidates.stage);
   const counts = Object.fromEntries(STAGES.map((s) => [s, 0])) as Record<Stage, number>;
   for (const r of rows) counts[r.stage] = r.n;
   return counts;
 }
 
-export async function getJobs() {
-  return getDb().select().from(jobs).orderBy(asc(jobs.title));
+export async function getJobs(userId: string) {
+  return getDb().select().from(jobs).where(eq(jobs.userId, userId)).orderBy(asc(jobs.title));
 }
 
-export async function getJobsWithCounts() {
+export async function getJobsWithCounts(userId: string) {
   return getDb()
     .select({ ...getTableColumns(jobs), candidateCount: count(candidates.id) })
     .from(jobs)
     .leftJoin(candidates, eq(candidates.jobId, jobs.id))
+    .where(eq(jobs.userId, userId))
     .groupBy(jobs.id)
     .orderBy(asc(jobs.status), asc(jobs.title));
 }
 
-export async function getJob(id: string) {
+export async function getJob(id: string, userId: string) {
   if (!isUuid(id)) return null;
-  const [row] = await getDb().select().from(jobs).where(eq(jobs.id, id)).limit(1);
+  const [row] = await getDb().select().from(jobs).where(and(eq(jobs.id, id), eq(jobs.userId, userId))).limit(1);
   return row ?? null;
 }
 
-export async function getCandidate(id: string) {
+export async function getCandidate(id: string, userId: string) {
   if (!isUuid(id)) return null;
   const [row] = await getDb()
     .select(candidateCols)
     .from(candidates)
     .innerJoin(jobs, eq(jobs.id, candidates.jobId))
-    .where(eq(candidates.id, id))
+    .where(and(eq(candidates.id, id), eq(candidates.userId, userId)))
     .limit(1);
   return row ?? null;
 }
@@ -126,7 +128,6 @@ export async function getCandidateNotes(id: string) {
   return getDb().select().from(candidateNotes).where(eq(candidateNotes.candidateId, id)).orderBy(desc(candidateNotes.createdAt));
 }
 
-/** Resume metadata only. The file bytes are loaded by the download route. */
 export async function getResumeMeta(candidateId: string) {
   const [row] = await getDb()
     .select({ id: resumeFiles.id, filename: resumeFiles.filename, size: resumeFiles.size, contentType: resumeFiles.contentType })
@@ -142,11 +143,12 @@ export async function getResumeFile(id: string) {
   return row ?? null;
 }
 
-export async function getBoard() {
+export async function getBoard(userId: string) {
   const rows = await getDb()
     .select(candidateCols)
     .from(candidates)
     .innerJoin(jobs, eq(jobs.id, candidates.jobId))
+    .where(eq(candidates.userId, userId))
     .orderBy(desc(candidates.updatedAt))
     .limit(300);
   const board = Object.fromEntries(STAGES.map((s) => [s, [] as typeof rows])) as Record<Stage, typeof rows>;
@@ -156,26 +158,28 @@ export async function getBoard() {
 
 function startOfWeek(d: Date) {
   const x = new Date(d);
-  const day = (x.getDay() + 6) % 7; // Monday = 0
+  const day = (x.getDay() + 6) % 7;
   x.setHours(0, 0, 0, 0);
   x.setDate(x.getDate() - day);
   return x;
 }
 
-export async function getDashboard() {
+export async function getDashboard(userId: string) {
   const db = getDb();
   const weeks = 8;
   const thisWeek = startOfWeek(new Date());
   const since = new Date(thisWeek);
   since.setDate(since.getDate() - 7 * (weeks - 1));
 
+  const userCond = eq(candidates.userId, userId);
   const [stageCounts, recentCandidates, jobRows, recentEvents, hiredRows] = await Promise.all([
-    getStageCounts(),
-    db.select({ createdAt: candidates.createdAt }).from(candidates).where(gte(candidates.createdAt, since)),
+    getStageCounts(userId),
+    db.select({ createdAt: candidates.createdAt }).from(candidates).where(and(userCond, gte(candidates.createdAt, since))),
     db
       .select({ id: jobs.id, title: jobs.title, n: count() })
       .from(candidates)
       .innerJoin(jobs, eq(jobs.id, candidates.jobId))
+      .where(userCond)
       .groupBy(jobs.id, jobs.title)
       .orderBy(desc(count()), asc(jobs.title))
       .limit(5),
@@ -192,13 +196,14 @@ export async function getDashboard() {
       .from(stageEvents)
       .innerJoin(candidates, eq(candidates.id, stageEvents.candidateId))
       .innerJoin(jobs, eq(jobs.id, candidates.jobId))
+      .where(userCond)
       .orderBy(desc(stageEvents.createdAt))
       .limit(7),
     db
       .select({ hiredAt: stageEvents.createdAt, appliedAt: candidates.createdAt })
       .from(stageEvents)
       .innerJoin(candidates, eq(candidates.id, stageEvents.candidateId))
-      .where(eq(stageEvents.toStage, "hired")),
+      .where(and(userCond, eq(stageEvents.toStage, "hired"))),
   ]);
 
   const total = STAGES.reduce((sum, s) => sum + stageCounts[s], 0);

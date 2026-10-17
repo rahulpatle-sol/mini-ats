@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { safeNext, credentialsMatch } from "@/lib/auth";
+import { safeNext, hashPassword, verifyPassword } from "@/lib/auth";
 
 describe("safeNext", () => {
   it("allows same-origin paths", () => {
     expect(safeNext("/candidates")).toBe("/candidates");
     expect(safeNext("/")).toBe("/");
+    expect(safeNext("/dashboard")).toBe("/dashboard");
   });
 
   it("blocks open redirects", () => {
@@ -20,19 +21,22 @@ describe("safeNext", () => {
   });
 });
 
-describe("credentialsMatch", () => {
-  it("matches correct email and password (case-insensitive email)", () => {
-    process.env.ADMIN_EMAIL = "Admin@Example.com";
-    process.env.ADMIN_PASSWORD = "s3cret";
-    expect(credentialsMatch("admin@example.com", "s3cret")).toBe(true);
-    expect(credentialsMatch("ADMIN@example.com", "s3cret")).toBe(true);
-    expect(credentialsMatch("admin@example.com", "wrong")).toBe(false);
-    expect(credentialsMatch("other@example.com", "s3cret")).toBe(false);
+describe("password hashing", () => {
+  it("hashes and verifies correctly", () => {
+    const hash = hashPassword("s3cret-password");
+    expect(hash).not.toContain("s3cret-password");
+    expect(verifyPassword("s3cret-password", hash)).toBe(true);
+    expect(verifyPassword("wrong-password", hash)).toBe(false);
   });
 
-  it("fails when env vars are missing", () => {
-    delete process.env.ADMIN_EMAIL;
-    delete process.env.ADMIN_PASSWORD;
-    expect(credentialsMatch("a@b.c", "x")).toBe(false);
+  it("rejects malformed stored hashes", () => {
+    expect(verifyPassword("x", "not-a-valid-hash")).toBe(false);
+    expect(verifyPassword("x", "")).toBe(false);
+  });
+
+  it("produces different hashes for the same password (salt)", () => {
+    const a = hashPassword("same");
+    const b = hashPassword("same");
+    expect(a).not.toBe(b);
   });
 });
