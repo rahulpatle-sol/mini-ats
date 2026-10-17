@@ -7,10 +7,10 @@ import { SORT_OPTIONS, STAGES, STAGE_META, type Stage } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export function CandidateFilters({
-  positions,
+  jobs,
   counts,
 }: {
-  positions: string[];
+  jobs: { id: string; title: string }[];
   counts: Record<Stage, number>;
 }) {
   const router = useRouter();
@@ -41,7 +41,6 @@ export function CandidateFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  // keep the box in sync when filters are cleared elsewhere
   useEffect(() => {
     setQ(sp.get("q") ?? "");
   }, [sp]);
@@ -67,14 +66,14 @@ export function CandidateFilters({
         </div>
         <select
           aria-label="Filter by role"
-          value={sp.get("position") ?? ""}
-          onChange={(e) => update({ position: e.target.value || null })}
+          value={sp.get("job") ?? ""}
+          onChange={(e) => update({ job: e.target.value || null })}
           className="field sm:w-52"
         >
           <option value="">All roles</option>
-          {positions.map((p) => (
-            <option key={p} value={p}>
-              {p}
+          {jobs.map((j) => (
+            <option key={j.id} value={j.id}>
+              {j.title}
             </option>
           ))}
         </select>
@@ -110,7 +109,7 @@ export function CandidateFilters({
             </button>
           );
         })}
-        {(sp.get("q") || sp.get("stage") || sp.get("position")) && (
+        {(sp.get("q") || sp.get("stage") || sp.get("job")) && (
           <button
             onClick={() => {
               setQ("");

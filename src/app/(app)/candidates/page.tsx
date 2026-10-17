@@ -1,4 +1,4 @@
-import { Plus, SearchX } from "lucide-react";
+import { Download, Plus, SearchX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -7,12 +7,13 @@ import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { Avatar, StageBadge } from "@/components/stage-badge";
 import { isStage, SORT_OPTIONS, type SortKey } from "@/lib/constants";
-import { getPositions, getStageCounts, listCandidates } from "@/lib/queries";
+import { getJobs, getStageCounts, listCandidates } from "@/lib/queries";
 import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Candidates" };
+export const dynamic = "force-dynamic";
 
-type SP = { q?: string; stage?: string; position?: string; sort?: string; page?: string };
+type SP = { q?: string; stage?: string; job?: string; sort?: string; page?: string };
 
 export default async function CandidatesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -20,13 +21,19 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
   const sort = SORT_OPTIONS.some((o) => o.value === sp.sort) ? (sp.sort as SortKey) : "newest";
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
-  const [{ rows, total, pageCount, page: current }, counts, positions] = await Promise.all([
-    listCandidates({ q: sp.q, stage, position: sp.position, sort, page }),
+  const [{ rows, total, pageCount, page: current }, counts, jobs] = await Promise.all([
+    listCandidates({ q: sp.q, stage, jobId: sp.job, sort, page }),
     getStageCounts(),
-    getPositions(),
+    getJobs(),
   ]);
 
-  const filtered = Boolean(sp.q || stage || sp.position);
+  const exportParams = new URLSearchParams();
+  if (sp.q) exportParams.set("q", sp.q);
+  if (stage) exportParams.set("stage", stage);
+  if (sp.job) exportParams.set("job", sp.job);
+  if (sort !== "newest") exportParams.set("sort", sort);
+
+  const filtered = Boolean(sp.q || stage || sp.job);
 
   return (
     <>
@@ -34,14 +41,19 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
         title="Candidates"
         description="Search, filter and open anyone in your pipeline."
         action={
-          <Link href="/candidates/new" className="btn-primary">
-            <Plus size={16} /> New candidate
-          </Link>
+          <div className="flex gap-2">
+            <a href={`/api/candidates/export?${exportParams}`} className="btn-ghost" download>
+              <Download size={15} /> Export CSV
+            </a>
+            <Link href="/candidates/new" className="btn-primary">
+              <Plus size={16} /> New candidate
+            </Link>
+          </div>
         }
       />
 
       <Suspense>
-        <CandidateFilters positions={positions} counts={counts} />
+        <CandidateFilters jobs={jobs} counts={counts} />
       </Suspense>
 
       <div className="card mt-5 overflow-hidden">
@@ -86,7 +98,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
                         </span>
                       </Link>
                     </td>
-                    <td className="px-3 py-3.5">{c.position}</td>
+                    <td className="px-3 py-3.5">{c.jobTitle}</td>
                     <td className="px-3 py-3.5">
                       <StageBadge stage={c.stage} />
                     </td>
@@ -107,7 +119,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
           page={current}
           pageCount={pageCount}
           total={total}
-          params={{ q: sp.q, stage, position: sp.position, sort: sort === "newest" ? undefined : sort }}
+          params={{ q: sp.q, stage, job: sp.job, sort: sort === "newest" ? undefined : sort }}
         />
       )}
     </>

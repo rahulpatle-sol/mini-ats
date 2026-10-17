@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { candidates, stageEvents } from "./schema";
+import { candidateNotes, candidates, jobs, stageEvents } from "./schema";
 
 type Stage = "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
 
@@ -8,7 +8,6 @@ const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL missing. Add it to .env.local");
 const db = drizzle(neon(url));
 
-// deterministic pseudo-random so the demo data is stable
 let seed = 42;
 const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
 const pick = <T,>(a: T[]) => a[Math.floor(rand() * a.length)]!;
@@ -20,6 +19,15 @@ const people = [
   "Yash Agarwal", "Pooja Kulkarni", "Harsh Tiwari", "Sneha Pillai", "Manav Saxena", "Kavya Bhatt",
   "Ishaan Das", "Lakshmi Krishnan", "Rahul Chauhan", "Ira Banerjee",
 ];
+
+const departments: Record<string, string> = {
+  "Frontend Engineer": "Engineering",
+  "Backend Engineer": "Engineering",
+  "Full-Stack Developer": "Engineering",
+  "Product Designer": "Design",
+  "Data Analyst": "Analytics",
+  "HR Executive": "People",
+};
 
 const roles: Record<string, string[]> = {
   "Frontend Engineer": ["React", "TypeScript", "Next.js", "Tailwind CSS", "Testing"],
@@ -41,6 +49,15 @@ async function main() {
   const now = Date.now();
   const cRows: (typeof candidates.$inferInsert)[] = [];
   const eRows: (typeof stageEvents.$inferInsert)[] = [];
+  const nRows: (typeof candidateNotes.$inferInsert)[] = [];
+
+  const jobRows = Object.keys(roles).map((title) => ({
+    id: crypto.randomUUID(),
+    title,
+    department: departments[title] ?? null,
+    status: "open" as const,
+  }));
+  const jobIdByTitle = new Map(jobRows.map((j) => [j.title, j.id]));
 
   people.forEach((name, i) => {
     const id = crypto.randomUUID();
@@ -74,22 +91,30 @@ async function main() {
       name,
       email: `${first}.${last}${i}@example.com`,
       phone: `+91 9${Math.floor(100000000 + rand() * 899999999)}`,
-      position,
+      jobId: jobIdByTitle.get(position)!,
       stage: final,
       skills,
       experienceYears: Math.floor(rand() * 9),
       source: pick(sources),
       resumeUrl: null,
-      notes: rand() > 0.6 ? "Strong communicator. Worth a closer look." : null,
       createdAt,
       updatedAt: new Date(t),
     });
   });
 
-  await db.delete(candidates);
+  cRows.forEach((c) => {
+    if (rand() > 0.6) {
+      nRows.push({ candidateId: c.id!, body: "Strong communicator. Worth a closer look.", author: "seed", createdAt: c.createdAt });
+    }
+  });
+
+  await db.delete(candidates); // cascades to events, notes and resumes
+  await db.delete(jobs);
+  await db.insert(jobs).values(jobRows);
   await db.insert(candidates).values(cRows);
   await db.insert(stageEvents).values(eRows);
-  console.log(`Seeded ${cRows.length} candidates and ${eRows.length} stage events.`);
+  if (nRows.length) await db.insert(candidateNotes).values(nRows);
+  console.log(`Seeded ${jobRows.length} jobs, ${cRows.length} candidates, ${eRows.length} stage events and ${nRows.length} notes.`);
 }
 
 main().catch((e) => {

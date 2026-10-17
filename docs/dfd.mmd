@@ -1,0 +1,40 @@
+flowchart LR
+  R[Recruiter]
+  AUTH((0.0 Login / session))
+  P1((1.0 Manage jobs))
+  P2((2.0 Manage candidates))
+  P3((3.0 Move stage + notify))
+  P4((4.0 Notes))
+  P5((5.0 Search / export))
+  P6((6.0 Dashboard))
+  D1[(D1 jobs)]
+  D2[(D2 candidates)]
+  D3[(D3 stage_events)]
+  D4[(D4 candidate_notes)]
+  D5[(D5 resume_files)]
+  EXT[(Email / Resend)]
+
+  R -->|credentials| AUTH
+  AUTH -->|session cookie| R
+  R -->|job details| P1
+  R -->|candidate + resume file| P2
+  R -->|new stage, note, notify?| P3
+  R -->|note body| P4
+  R -->|query, filters| P5
+  R -->|open overview| P6
+
+  P1 -->|insert, update, close| D1
+  P2 -->|insert, update, delete| D2
+  P2 -->|store file| D5
+  P2 -->|initial Applied event| D3
+  P3 -->|update stage| D2
+  P3 -->|log transition| D3
+  P3 -->|optional stage email| EXT
+  P4 -->|insert, delete| D4
+  D1 -->|job list for FK| P2
+  D2 -->|join for search| P5
+  D2 -->|stage counts| P6
+  D3 -->|timestamps, activity| P6
+  D2 -->|rows| P5
+  P5 -->|CSV file| R
+  P6 -->|metrics| R

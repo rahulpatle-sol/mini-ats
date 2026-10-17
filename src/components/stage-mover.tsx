@@ -5,11 +5,13 @@ import { useState, useTransition } from "react";
 import { changeStage } from "@/actions/candidates";
 import { allowedTargets, STAGE_META, type Stage } from "@/lib/constants";
 
-export function StageMover({ id, stage }: { id: string; stage: Stage }) {
+export function StageMover({ id, stage, candidateName }: { id: string; stage: Stage; candidateName: string }) {
   const targets = allowedTargets(stage);
   const [to, setTo] = useState<Stage>(targets[0] ?? stage);
   const [note, setNote] = useState("");
+  const [notify, setNotify] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
   const [pending, startTransition] = useTransition();
 
   if (targets.length === 0) {
@@ -19,10 +21,15 @@ export function StageMover({ id, stage }: { id: string; stage: Stage }) {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSent(false);
     startTransition(async () => {
-      const res = await changeStage(id, to, note);
+      const res = await changeStage(id, to, note, notify);
       if (!res.ok) setError(res.error ?? "Something went wrong.");
-      else setNote("");
+      else {
+        setNote("");
+        setSent(notify);
+        setNotify(false);
+      }
     });
   }
 
@@ -44,20 +51,18 @@ export function StageMover({ id, stage }: { id: string; stage: Stage }) {
         <label htmlFor="stage-note" className="label">
           Note <span className="font-normal text-muted">(optional)</span>
         </label>
-        <input
-          id="stage-note"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          maxLength={500}
-          placeholder="Reason or next step"
-          className="field"
-        />
+        <input id="stage-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="Reason or next step" className="field" />
       </div>
+      <label className="flex items-start gap-2 text-sm text-muted">
+        <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+        <span>Email {candidateName.split(" ")[0]} about this change</span>
+      </label>
       {error && (
         <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">
           {error}
         </p>
       )}
+      {sent && !error && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">Stage updated. Email queued.</p>}
       <button type="submit" disabled={pending} className="btn-primary w-full">
         {pending && <Loader2 size={16} className="animate-spin" />}
         Update stage

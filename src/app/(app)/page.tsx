@@ -42,7 +42,7 @@ export default async function Dashboard() {
   const stages: Stage[] = [...PIPELINE, "rejected"];
   const maxStage = Math.max(1, ...stages.map((s) => d.stageCounts[s]));
   const maxWeek = Math.max(1, ...d.weekly.map((w) => w.n));
-  const maxPos = Math.max(1, ...d.positions.map((p) => p.n));
+  const maxPos = Math.max(1, ...d.jobs.map((p) => p.n));
 
   return (
     <>
@@ -123,11 +123,11 @@ export default async function Dashboard() {
         <section className="card p-6 lg:col-span-2" aria-labelledby="roles-h">
           <h2 id="roles-h" className="font-serif text-xl">Busiest roles</h2>
           <ul className="mt-4 space-y-4">
-            {d.positions.map((p) => (
-              <li key={p.position}>
-                <Link href={`/candidates?position=${encodeURIComponent(p.position)}`} className="block">
+            {d.jobs.map((p) => (
+              <li key={p.id}>
+                <Link href={`/candidates?job=${p.id}`} className="block">
                   <div className="flex justify-between text-sm">
-                    <span>{p.position}</span>
+                    <span>{p.title}</span>
                     <span className="tabular-nums text-muted">{p.n}</span>
                   </div>
                   <div className="mt-1.5 h-1.5 rounded-full bg-canvas">
@@ -153,7 +153,7 @@ export default async function Dashboard() {
                   <Link href={`/candidates/${e.candidateId}`} className="block truncate text-sm font-medium hover:underline">
                     {e.name}
                   </Link>
-                  <p className="truncate text-xs text-muted">{e.position}</p>
+                  <p className="truncate text-xs text-muted">{e.jobTitle}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
                   <StageBadge stage={e.toStage} />

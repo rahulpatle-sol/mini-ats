@@ -1,17 +1,19 @@
 "use client";
 
-import { KanbanSquare, LayoutDashboard, Plus, Users } from "lucide-react";
+import { Briefcase, KanbanSquare, LayoutDashboard, LogOut, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/actions/auth";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/candidates", label: "Candidates", icon: Users },
+  { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/board", label: "Board", icon: KanbanSquare },
 ];
 
-export function Sidebar() {
+export function Sidebar({ email }: { email?: string }) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -45,9 +47,12 @@ export function Sidebar() {
           ))}
         </nav>
 
-        <p className="mt-auto px-3 text-xs leading-relaxed text-muted">
-          Applied to hired, all in one place.
-        </p>
+        <form action={logout} className="mt-auto border-t border-line pt-4">
+          {email && <p className="mb-2 truncate px-3 text-xs text-muted">{email}</p>}
+          <button type="submit" className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted hover:bg-surface/60 hover:text-ink">
+            <LogOut size={17} /> Sign out
+          </button>
+        </form>
       </aside>
 
       <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-sidebar/95 px-4 py-3 backdrop-blur md:hidden">
@@ -57,7 +62,7 @@ export function Sidebar() {
           </span>
           <span className="font-serif text-lg">Mini ATS</span>
         </Link>
-        <nav className="flex items-center gap-1" aria-label="Main">
+        <nav className="flex items-center gap-0.5" aria-label="Main">
           {NAV.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
@@ -72,6 +77,11 @@ export function Sidebar() {
           <Link href="/candidates/new" aria-label="New candidate" className="ml-1 rounded-lg bg-accent p-2 text-accent-ink">
             <Plus size={18} />
           </Link>
+          <form action={logout}>
+            <button type="submit" aria-label="Sign out" className="rounded-lg p-2 text-muted">
+              <LogOut size={18} />
+            </button>
+          </form>
         </nav>
       </header>
     </>

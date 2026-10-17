@@ -9,7 +9,7 @@ import { cn, daysSince } from "@/lib/utils";
 export type BoardCard = {
   id: string;
   name: string;
-  position: string;
+  jobTitle: string;
   stage: Stage;
   experienceYears: number;
   skills: string[];
@@ -114,7 +114,7 @@ export function KanbanBoard({ initial }: { initial: Columns }) {
                   >
                     <Link href={`/candidates/${c.id}`} draggable={false} className="block">
                       <p className="truncate text-sm font-medium">{c.name}</p>
-                      <p className="mt-0.5 truncate text-xs text-muted">{c.position}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted">{c.jobTitle}</p>
                     </Link>
                     {c.skills.length > 0 && (
                       <ul className="mt-2.5 flex flex-wrap gap-1">

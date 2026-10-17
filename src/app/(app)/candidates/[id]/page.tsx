@@ -1,12 +1,13 @@
-import { ArrowLeft, ExternalLink, Mail, Pencil, Phone } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, Mail, Pencil, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeleteButton } from "@/components/delete-button";
+import { Notes } from "@/components/notes";
 import { StageMover } from "@/components/stage-mover";
 import { Avatar, StageBadge } from "@/components/stage-badge";
 import { STAGE_META } from "@/lib/constants";
-import { getCandidate, getCandidateEvents } from "@/lib/queries";
+import { getCandidate, getCandidateEvents, getCandidateNotes, getResumeMeta } from "@/lib/queries";
 import { cn, daysSince, formatDate, formatDateTime } from "@/lib/utils";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -28,7 +29,11 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const candidate = await getCandidate(id);
   if (!candidate) notFound();
-  const events = await getCandidateEvents(candidate.id);
+  const [events, notes, resume] = await Promise.all([
+    getCandidateEvents(candidate.id),
+    getCandidateNotes(candidate.id),
+    getResumeMeta(candidate.id),
+  ]);
 
   return (
     <>
@@ -42,7 +47,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           <div>
             <h1 className="font-serif text-3xl tracking-tight md:text-4xl">{candidate.name}</h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-muted">
-              <span>{candidate.position}</span>
+              <span>{candidate.jobTitle}</span>
               <StageBadge stage={candidate.stage} />
             </div>
           </div>
@@ -79,12 +84,22 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               </Row>
               <Row label="Source">{candidate.source ?? <span className="text-muted">Not set</span>}</Row>
               <Row label="Resume">
-                {candidate.resumeUrl ? (
-                  <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-accent hover:underline">
-                    Open resume <ExternalLink size={13} />
-                  </a>
+                {resume || candidate.resumeUrl ? (
+                  <div className="flex flex-col gap-1.5">
+                    {resume && (
+                      <a href={`/api/resume/${resume.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-accent hover:underline">
+                        <FileText size={14} /> {resume.filename}
+                        <span className="text-xs text-muted">({Math.max(1, Math.round(resume.size / 1024))} KB)</span>
+                      </a>
+                    )}
+                    {candidate.resumeUrl && (
+                      <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-accent hover:underline">
+                        Link <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </div>
                 ) : (
-                  <span className="text-muted">No link added</span>
+                  <span className="text-muted">Nothing added</span>
                 )}
               </Row>
               <Row label="Applied">
@@ -108,20 +123,14 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
 
           <section className="card p-6" aria-labelledby="notes-h">
             <h2 id="notes-h" className="font-serif text-xl">Notes</h2>
-            {candidate.notes ? (
-              <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed">{candidate.notes}</p>
-            ) : (
-              <p className="mt-3 text-sm text-muted">
-                No notes yet. <Link href={`/candidates/${candidate.id}/edit`} className="text-accent hover:underline">Add one</Link>
-              </p>
-            )}
+            <Notes candidateId={candidate.id} notes={notes.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() }))} />
           </section>
         </div>
 
         <div className="space-y-6 lg:col-span-2">
           <section className="card p-6" aria-labelledby="move-h">
             <h2 id="move-h" className="mb-4 font-serif text-xl">Hiring stage</h2>
-            <StageMover id={candidate.id} stage={candidate.stage} />
+            <StageMover id={candidate.id} stage={candidate.stage} candidateName={candidate.name} />
           </section>
 
           <section className="card p-6" aria-labelledby="history-h">
